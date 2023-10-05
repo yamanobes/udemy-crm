@@ -1,0 +1,70 @@
+version: "3.9"
+volumes:
+  php-fpm-socket:
+  db-store:
+services:
+  app:
+    container_name: app
+    build:
+      context: .
+      dockerfile: ./infra/php/Dockerfile
+    ports:
+      - 5173:5173
+    volumes:
+      - type: bind
+        source: ./src
+        target: /work/src
+    environment:
+      - DB_CONNECTION=mysql
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_DATABASE=${DB_NAME:-laravel_local}
+      - DB_USERNAME=${DB_USER:-phper}
+      - DB_PASSWORD=${DB_PASS:-secret}
+
+  web:
+    build:
+      context: .
+      dockerfile: ./infra/nginx/Dockerfile
+    ports:
+      - target: 443
+        published: ${WEB_PUBLISHED_PORT:-443}
+        protocol: tcp
+        mode: host
+    volumes:
+      - type: bind
+        source: ./src
+        target: /work/src
+
+  db:
+    build:
+      context: .
+      dockerfile: ./infra/mariadb/Dockerfile
+    ports:
+      - target: 3306
+        published: ${DB_PORT:-3306}
+        protocol: tcp
+        mode: host
+    volumes:
+      - type: volume
+        source: db-store
+        target: /var/lib/mysql
+        volume:
+          nocopy: true
+    environment:
+      - MYSQL_DATABASE=${DB_NAME:-laravel_local}
+      - MYSQL_USER=${DB_USER:-phper}
+      - MYSQL_PASSWORD=${DB_PASS:-secret}
+      - MYSQL_ROOT_PASSWORD=${DB_PASS:-secret}
+  ngrok:
+    image: wernight/ngrok
+    ports:
+      - ${WEB_PORT:-4040}:4040
+    environment:
+      NGROK_AUTH: ${NGROK_AUTH}
+      NGROK_PROTOCOL: http
+      NGROK_PORT: web:80
+  mailhog:
+    image: mailhog/mailhog
+    ports:
+      - 8025:8025
